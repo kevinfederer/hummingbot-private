@@ -1,0 +1,123 @@
+# ISAMM V2 Controller Configuration
+# Avellaneda-Stoikov Market Making Strategy
+#
+# This controller implements the AS model which adjusts optimal bid/ask quotes
+# based on inventory risk and market conditions.
+
+controller_type: market_making
+controller_name: isamm_mm_v2
+id: isamm_mm_v2_001
+
+# ===== 交易连接器与交易对 =====
+# 使用币安合约测试网
+connector_name: binance_perpetual_testnet
+trading_pair: SOL-USDT
+
+# ===== 资金配置 =====
+# 总资金（quote currency，例如 USDT）
+# 注意：币安永续合约测试网最小订单金额为 1 USDT
+# 建议设置至少 1000 USDT 以确保订单满足最小要求
+total_amount_quote: 1000
+
+# 资金分阶段使用（例如 3 表示每轮只使用 1/3 资金）
+capital_allocation_stages: 3
+
+# ===== 做市层级配置 =====
+# 买单价差层级（作为 spread_multiplier 的倍数）
+# 例如: [0.5, 1.0] 表示第一层使用 0.5 * spread_multiplier，第二层使用 1.0 * spread_multiplier
+buy_spreads: "0.2"
+
+# 卖单价差层级
+sell_spreads: "0.2"
+
+# 买单资金分配（百分比，总和等于 100）
+
+# 例如: "33, 33, 34" 表示将买单资金按 33%/33%/34% 分配到三个层级
+buy_amounts_pct: "100"
+
+# 卖单资金分配（百分比，总和等于 100）
+sell_amounts_pct: "100"
+
+# ===== 执行器刷新时间 =====
+# 订单刷新时间（秒）
+executor_refresh_time: 4
+executor_refresh_time_jitter: 1
+
+# 冷却时间（秒）- 止损后等待时间
+cooldown_time: 4
+cooldown_time_jitter: 1
+
+# ===== 杠杆配置 =====
+# 杠杆倍数（现货交易使用 1，合约交易可使用更高倍数）
+leverage: 1
+
+# ===== 持仓模式 =====
+# HEDGE: 对冲模式（允许同时持有多空头寸）
+# ONEWAY: 单向模式（同一时间只能持有一个方向的头寸）
+position_mode: HEDGE
+
+# ===== 三重屏障配置 (Triple Barrier) =====
+# 止损（例如 0.03 表示 3%）
+stop_loss: 0.03
+
+# 止盈（例如 0.02 表示 2%）
+take_profit: 0.02
+
+# 时间限制（秒，例如 2700 表示 45 分钟）
+time_limit: 2700
+
+# 止盈订单类型 (LIMIT/MARKET)
+take_profit_order_type: LIMIT
+
+# 跟踪止损（可选，格式：activation_price,trailing_delta）
+# 例如: "0.015,0.003" 表示价格达到 1.5% 时激活，跟踪距离为 0.3%
+trailing_stop: ""
+
+# ===== ISAMM 模型参数 =====
+#
+# risk_lambda: 风险厌恶系数
+# - 控制对库存风险的厌恶程度
+# - 值越大，越不愿意承担库存风险，价差会更大
+# - 典型范围: 0.01 - 1.0
+risk_lambda: 0.10
+
+# gamma_impact: 价格影响系数
+# - 考虑交易对价格的影响
+# - 值越大，交易对价格影响越大
+# - 典型范围: 0.0 - 0.1
+gamma_impact: 0.001
+
+# kappa: 订单簿失衡系数
+# - 根据订单簿不平衡调整基准价格
+# - 正值表示在买盘强时提高价格
+# - 典型范围: -1.0 - 1.0
+kappa: 0.001
+
+# lambda_inv: 库存倾斜系数
+# - 根据当前库存调整基准价格
+# - 正值表示持有净多头时降低报价以鼓励卖出
+# - 典型范围: 0.0 - 1.0
+lambda_inv: 0.0001
+
+# spread_bps: 基础价差（比例形式）
+# - 0.001 = 0.1% = 10 basis points
+# - 0.002 = 0.2% = 20 basis points
+# - 这是半边价差，实际买卖价差 = 2 * spread_bps
+spread_bps: 0.001
+
+# max_inventory: 最大库存目标
+# - 当库存接近此值时，报价将更激进地减少库存
+# - 单位与基础资产相同
+max_inventory: 50
+
+# ===== 仓位再平衡配置 =====
+# 仓位再平衡阈值（百分比）
+# 当当前仓位与所需仓位的差异超过此百分比时触发再平衡
+position_rebalance_threshold_pct: 0.05
+
+# 是否跳过仓位再平衡
+skip_rebalance: false
+
+# ===== K线数据配置（可选）=====
+# 如果未来需要基于 K线数据计算 OBI 或其他指标
+candles_config: []

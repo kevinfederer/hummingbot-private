@@ -1,0 +1,24 @@
+# ISAMM V2 Market Making Strategy Configuration
+# This file uses the v2_with_controllers script to run the isamm_mm_v2 controller
+
+script_file_name: v2_with_controllers.py
+
+# Controller configuration files to load
+controllers_config:
+  - isamm_mm_v2.yml
+
+# Markets configuration (Binance Testnet)
+# 明确指定使用测试网，防止被其他设置覆盖
+markets:
+  binance_perpetual_testnet:
+    - SOL-USDT
+
+# Candles configuration (if needed for indicators)
+candles_config: []
+
+# Drawdown protection (optional)
+# Set to a value (e.g., 100) to stop the strategy if the global drawdown exceeds this amount
+max_global_drawdown_quote: null
+
+# Set to a value to stop individual controllers if they exceed this drawdown
+max_controller_drawdown_quote: null
