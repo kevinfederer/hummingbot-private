@@ -3,6 +3,7 @@ from typing import List
 
 from pydantic import Field
 
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.market_making_controller_base import (
     MarketMakingControllerBase,
@@ -52,6 +53,24 @@ class ISAMMMM2Config(MarketMakingControllerConfigBase):
         json_schema_extra={"is_updatable": True}
     )
 
+    # Cost / slippage floor (percentages as decimals, e.g., 0.002 = 0.2%)
+    maker_fee_pct: Decimal = Field(
+        default=Decimal("0"),
+        json_schema_extra={"is_updatable": True}
+    )
+    taker_fee_pct: Decimal = Field(
+        default=Decimal("0"),
+        json_schema_extra={"is_updatable": True}
+    )
+    slippage_pct: Decimal = Field(
+        default=Decimal("0"),
+        json_schema_extra={"is_updatable": True}
+    )
+    min_profitability_pct: Decimal = Field(
+        default=Decimal("0"),
+        json_schema_extra={"is_updatable": True}
+    )
+
 
 class ISAMMMM2Controller(MarketMakingControllerBase):
     """
@@ -92,6 +111,28 @@ class ISAMMMM2Controller(MarketMakingControllerBase):
                     inv -= position.amount
         return inv
 
+    def _min_spread_pct(self) -> Decimal:
+        """
+        Compute the minimum half-spread (distance from reference price) required
+        to cover expected round-trip costs.
+
+        Assumptions:
+        - Entry is maker
+        - Exit is taker if taker_fee_pct > 0, otherwise maker
+        - slippage_pct is a one-way estimate (applied once on exit)
+        """
+        maker_fee = max(self.config.maker_fee_pct, Decimal("0"))
+        taker_fee = max(self.config.taker_fee_pct, Decimal("0"))
+        slippage = max(self.config.slippage_pct, Decimal("0"))
+        min_profit = max(self.config.min_profitability_pct, Decimal("0"))
+
+        if maker_fee == taker_fee == slippage == min_profit == Decimal("0"):
+            return Decimal("0")
+
+        exit_fee = taker_fee if taker_fee > 0 else maker_fee
+        round_trip_cost = maker_fee + exit_fee + slippage + min_profit
+        return round_trip_cost / Decimal("2")
+
     async def update_processed_data(self):
         """
         Update processed data with ISAMM calculations.
@@ -130,6 +171,7 @@ class ISAMMMM2Controller(MarketMakingControllerBase):
 
         # Spread multiplier (as ratio, e.g., 0.001 = 0.1%)
         spread_multiplier = self.config.spread_bps
+        min_spread_pct = self._min_spread_pct()
 
         self.processed_data = {
             "mid_price": mid_price,
@@ -139,7 +181,27 @@ class ISAMMMM2Controller(MarketMakingControllerBase):
             "skew_price": skew_price,
             "reference_price": reference_price,
             "spread_multiplier": spread_multiplier,
+            "min_spread_pct": min_spread_pct,
         }
+
+    def get_price_and_amount(self, level_id: str):
+        """
+        Get the price and amount for a given level, applying a minimum cost floor
+        for the half-spread if configured.
+        """
+        level = self.get_level_from_level_id(level_id)
+        trade_type = self.get_trade_type_from_level_id(level_id)
+        spreads, amounts_quote = self.config.get_spreads_and_amounts_in_quote(trade_type)
+        reference_price = Decimal(self.processed_data["reference_price"])
+        spread_in_pct = Decimal(spreads[int(level)]) * Decimal(self.processed_data["spread_multiplier"])
+
+        min_spread_pct = Decimal(self.processed_data.get("min_spread_pct", "0"))
+        if min_spread_pct > Decimal("0") and spread_in_pct < min_spread_pct:
+            spread_in_pct = min_spread_pct
+
+        side_multiplier = Decimal("-1") if trade_type == TradeType.BUY else Decimal("1")
+        order_price = reference_price * (1 + side_multiplier * spread_in_pct)
+        return order_price, Decimal(amounts_quote[int(level)]) / order_price
 
     def get_executor_config(self, level_id: str, price: Decimal, amount: Decimal):
         """
