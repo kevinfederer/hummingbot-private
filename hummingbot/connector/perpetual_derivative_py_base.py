@@ -360,10 +360,21 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
             self.logger().network(f"Error setting leverage {leverage} for {trading_pair}: {msg}")
 
     async def _listen_for_funding_info(self):
-        await self._init_funding_info()
-        await self._orderbook_ds.listen_for_funding_info(
-            output=self._perpetual_trading.funding_info_stream
-        )
+        while True:
+            try:
+                await self._init_funding_info()
+                await self._orderbook_ds.listen_for_funding_info(
+                    output=self._perpetual_trading.funding_info_stream
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self.logger().network(
+                    "Unexpected error while initializing funding info. Retrying...",
+                    exc_info=True,
+                    app_warning_msg=f"Could not initialize funding info from {self.name_cap}. Check network connection.",
+                )
+                await self._sleep(5.0)
 
     async def _init_funding_info(self):
         for trading_pair in self.trading_pairs:

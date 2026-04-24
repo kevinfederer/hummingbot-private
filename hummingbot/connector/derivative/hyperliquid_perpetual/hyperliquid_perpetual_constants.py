@@ -31,6 +31,9 @@ TRADES_TYPE = "userFills"
 ORDER_STATUS_TYPE = "orderStatus"
 
 USER_STATE_TYPE = "clearinghouseState"
+SPOT_USER_STATE_TYPE = "spotClearinghouseState"
+USER_ABSTRACTION_TYPE = "userAbstraction"
+UNIFIED_ACCOUNT_TYPE = "unifiedAccount"
 
 # yes
 TICKER_PRICE_CHANGE_URL = "/info"
@@ -71,6 +74,7 @@ ORDER_STATE = {
     "filled": OrderState.FILLED,
     "canceled": OrderState.CANCELED,
     "rejected": OrderState.FAILED,
+    "minTradeNtlRejected": OrderState.FAILED,
     "badAloPxRejected": OrderState.FAILED,
     "reduceOnlyCanceled": OrderState.CANCELED,
     "perpMarginRejected": OrderState.FAILED,

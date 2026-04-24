@@ -709,11 +709,44 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
         Calls the REST API to update total and available balances.
         """
 
+        quote = CONSTANTS.CURRENCY
+        abstraction_mode = await self._api_post(
+            path_url=CONSTANTS.ACCOUNT_INFO_URL,
+            data={"type": CONSTANTS.USER_ABSTRACTION_TYPE,
+                  "user": self.hyperliquid_perpetual_address},
+        )
+        if abstraction_mode == CONSTANTS.UNIFIED_ACCOUNT_TYPE:
+            spot_state = await self._api_post(
+                path_url=CONSTANTS.ACCOUNT_INFO_URL,
+                data={"type": CONSTANTS.SPOT_USER_STATE_TYPE,
+                      "user": self.hyperliquid_perpetual_address},
+            )
+            usdc_balance = next(
+                (
+                    balance
+                    for balance in spot_state.get("balances", [])
+                    if str(balance.get("coin", "")).upper() == "USDC"
+                ),
+                {},
+            )
+            maintenance_entry = next(
+                (
+                    entry
+                    for entry in spot_state.get("tokenToAvailableAfterMaintenance", [])
+                    if int(entry[0]) == 0
+                ),
+                None,
+            )
+            total_balance = Decimal(str(usdc_balance.get("total", maintenance_entry[1] if maintenance_entry else "0")))
+            available_balance = Decimal(str(maintenance_entry[1])) if maintenance_entry else total_balance
+            self._account_balances[quote] = total_balance
+            self._account_available_balances[quote] = available_balance
+            return
+
         account_info = await self._api_post(path_url=CONSTANTS.ACCOUNT_INFO_URL,
                                             data={"type": CONSTANTS.USER_STATE_TYPE,
                                                   "user": self.hyperliquid_perpetual_address},
                                             )
-        quote = CONSTANTS.CURRENCY
         self._account_balances[quote] = Decimal(account_info["crossMarginSummary"]["accountValue"])
         self._account_available_balances[quote] = Decimal(account_info["withdrawable"])
 
